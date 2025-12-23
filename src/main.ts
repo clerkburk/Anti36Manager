@@ -1,15 +1,18 @@
 ﻿const timeStart = performance.now()
-import * as isb from "ts-instrumentality/base"
 import * as isn from "ts-instrumentality/node"
 import * as isd from "ts-instrumentality/dom"
 import * as bn from "./logic.js"
 
 
+// Reset portrayals back to unsorted (DEBUGGING ONLY)
+bn.all_portrayals().forEach(portrayal => portrayal.move_sync(bn.UNSORTED_FOLDER))
 
-// Resources
-let isSortingMode = true
-let selectedPersonaFilters: bn.Persona[] = []
-let selectedTags: bn.TagT[] = []
+
+
+// Resources (here for mutability)
+export let isSortingMode = true // true: sorting mode, false: filtering mode
+export let selectedPersonaFilters: bn.Persona[] = []
+export let selectedTags: bn.TagT[] = []
 
 
 
@@ -20,8 +23,11 @@ const UI = {
     functions to manipulate them.
   */
   // Other
-  switchModeButton: isd.by_id("switch-mode", HTMLButtonElement), // Onclick event is set outside
-
+  background_colors: {
+    sorting: ["#660000", "#001638"],
+    filtering: ["#114538", "#161d23"],
+  },
+  background_size: "200% 200%",
 
   // Previews (sidebar)
   previews: isd.by_tag("aside")[0]!,
@@ -33,9 +39,9 @@ const UI = {
     */
     let element: HTMLImageElement | HTMLVideoElement
     if (bn.EXTENSION_TO_MEDIA[_source.ext()] === bn.MediaT.IMAGE)
-      element = isd.create_element("img")
+      element = document.createElement("img")
     else if (bn.EXTENSION_TO_MEDIA[_source.ext()] === bn.MediaT.VIDEO) {
-      element = isd.create_element("video")
+      element = document.createElement("video")
       element.muted = true
       element.loop = true
       element.addEventListener("mouseover", () => (element as HTMLVideoElement).play())
@@ -61,12 +67,12 @@ const UI = {
     isd.by_id(UI.previewTargetID, HTMLElement).remove()
     let newElement: typeof _selfHtml
     if (_selfHtml instanceof HTMLVideoElement) {
-      newElement = isd.create_element("video")
+      newElement = document.createElement("video")
       newElement.controls = true
       newElement.loop = true
     }
     else
-      newElement = isd.create_element("img")
+      newElement = document.createElement("img")
     isd.by_tag("main").at(0)!.appendChild(newElement)
     newElement.src = _selfHtml.src
     newElement.id = UI.previewTargetID
@@ -79,8 +85,8 @@ const UI = {
 
   set_origin_datalist(): void {
     for (const origin of bn.list_origins()) {
-      const option = isd.create_element ("option")
-      option.value = origin.name
+      const option = document.createElement("option")
+      option.value = origin.name()
       option.label = `with ${origin.list_personas().length} personas`
       this.originList.appendChild(option)
     }
@@ -103,7 +109,7 @@ const UI = {
     UI.personaList.innerHTML = "" // Clear previous options
     for (const persona of bn.find_origin(UI.originSelect.value)?.list_personas() ?? []) {
       const option = document.createElement("option")
-      option.value = persona.name
+      option.value = persona.name()
       this.personaList.appendChild(option)
     }
   },
@@ -125,15 +131,25 @@ const UI = {
   async create_new_portrayal_by_user(): Promise<void> {
     const persona: bn.Persona = bn.find_origin(UI.originSelect.value)?.find_persona(UI.personaSelect.value)!
     const previewElement = document.getElementById(UI.previewTargetID)! as HTMLImageElement | HTMLVideoElement
-    console.log("DEBUG: ", bn.create_portrayal(persona, selectedTags, new isn.File(decodeURI(previewElement.src.replace(/^file:\/\/\//, "")))))
+    console.debug("DEBUG: ", bn.create_portrayal(persona, selectedTags, new isn.File(decodeURI(previewElement.src.replace(/^file:\/\/\//, "")))))
     for (const previewOriginal of isd.by_class("preview"))
       if (previewOriginal instanceof HTMLImageElement || previewOriginal instanceof HTMLVideoElement)
         if (previewOriginal.src === previewElement.src)
           previewOriginal.remove()
   },
 
-  confirm_filtering_dummy(): void {
-    console.log("dummy")
+  confirm_filtering(): void {
+    /*
+      Apply filtering according to selected personas and tags
+    */
+    // Clear sidebar
+    UI.previews.innerHTML = ""
+    // Gather portrayals to show
+    let portrayalsToShow: bn.Portrayal[] = bn.make_portrayal_bundle(bn.all_portrayals(), { byPersonas: selectedPersonaFilters, byTags: selectedTags })
+    console.debug("Filtered portrayals: ", portrayalsToShow)
+    // Insert into sidebar
+    for (const portrayal of portrayalsToShow)
+      UI.insert_into_sidebar(new isn.File(portrayal.isAt))
   },
 
   set_confirm_button_onclick(): void {
@@ -141,7 +157,7 @@ const UI = {
       if (isSortingMode)
         this.create_new_portrayal_by_user()
       else
-        this.confirm_filtering_dummy()
+        this.confirm_filtering()
     }
   },
 
@@ -175,7 +191,7 @@ const UI = {
     /*
       Create and insert a tag button inside DOM
     */
-    const button = isd.create_element("button")
+    const button = document.createElement("button")
     button.name = _identifier
     button.type = "button"
     button.classList.add("tag-button")
@@ -191,6 +207,24 @@ const UI = {
       this.tagButtons.set(tagAsChar as bn.TagT, floatingButton)
     }
   },
+
+
+  // Switch mode button
+  switchModeButton: isd.by_id("switch-mode", HTMLButtonElement), // Onclick event is set outside
+
+  set_switch_mode_button_onclick(): void {
+    this.switchModeButton.onclick = () => {
+      isSortingMode = !isSortingMode
+      console.debug("Switched mode to ", isSortingMode ? "Sorting" : "Filtering")
+      if (isSortingMode) {
+        isd.by_tag("body").at(0)!.style.background = `linear-gradient(45deg, ${this.background_colors.sorting[0]}, ${this.background_colors.sorting[1]})`
+        isd.by_tag("body").at(0)!.style.backgroundSize = this.background_size
+      } else {
+        isd.by_tag("body").at(0)!.style.background = `linear-gradient(45deg, ${this.background_colors.filtering[0]}, ${this.background_colors.filtering[1]})`
+        isd.by_tag("body").at(0)!.style.backgroundSize = this.background_size
+      }
+    }
+  },
 } as const
 
 
@@ -200,15 +234,10 @@ UI.set_origin_datalist()
 UI.set_originSelect_event_handler()
 UI.set_personaSelect_event_handler()
 UI.set_confirm_button_onclick()
+UI.set_switch_mode_button_onclick()
 
-
-
-// Make shift init
 for (const media of bn.UNSORTED_FOLDER.list_sync())
   UI.insert_into_sidebar(new isn.File(media.isAt))
 
-
-
-// Stupid work around to give html access to module
 isd.by_id(UI.previewTargetID).innerHTML = `Took: ${String(performance.now() - timeStart).slice(0, 5)} ms`
-Object.assign(window, { })
+console.debug("test")

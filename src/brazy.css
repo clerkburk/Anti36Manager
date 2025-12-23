@@ -1,8 +1,9 @@
 body {
     /* Animates gradient colors */
-    background: linear-gradient(45deg, #660000, #001638);
+    background: linear-gradient(45deg, #ffffff, #000000);
     background-size: 200% 200%;
     animation: gradientAnimation 15s ease infinite;
+    transition: background 1s;
 
     /* Content alignment */
     display: flex;
