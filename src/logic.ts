@@ -4,6 +4,7 @@
     For consistency, don't use Web/DOM-related code here
 */
 import * as isn from "ts-instrumentality/node"
+import * as isb from "ts-instrumentality/base"
 import { join } from "node:path"
 
 
@@ -197,4 +198,39 @@ export function make_portrayal_bundle(_portrayals: Portrayal[], _filterOptions: 
     || (_filterOptions.byTags && _filterOptions.byTags.length > 0 &&
       _filterOptions.byTags.some(tag => portrayal.tags().includes(tag)))
   )
+}
+
+
+
+// State management
+export const enum Mode {
+  SORTING = "SORTING",
+  FILTERING = "FILTERING"
+}
+export let currentMode: Mode = Mode.FILTERING
+export function toggleMode(_to: Mode = currentMode === Mode.FILTERING ? Mode.SORTING : Mode.FILTERING): void { currentMode = _to }
+export function mode_or(_truthyMode: Mode = Mode.SORTING): boolean {
+  /*
+    Another layering of mode check that returns a boolean
+    instead of executing functions. Would save some lines
+    of code in certain places.
+  */
+  if (currentMode === Mode.SORTING)
+    return _truthyMode === Mode.SORTING
+  else if (currentMode === Mode.FILTERING)
+    return _truthyMode === Mode.FILTERING
+  else
+    throw new Error("Invalid mode state")
+}
+export let selectedPersonaFilters: Persona[] = []
+export function clear_persona_filters(): void { selectedPersonaFilters = [] }
+export function add_persona_filter(_persona: Persona): void { 
+  if (!selectedPersonaFilters.includes(_persona))
+    selectedPersonaFilters.push(_persona)
+}
+export let selectedTags: TagT[] = []
+export function reset_tag_filters(_to: TagT[] = []): void { selectedTags = _to }
+export function add_tag_filter(_tag: TagT): void {
+  if (!selectedTags.includes(_tag))
+    selectedTags.push(_tag)
 }

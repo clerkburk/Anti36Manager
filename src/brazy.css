@@ -35,10 +35,11 @@ main {
     box-shadow: 0 8px 8px 0 rgba(0,0,0,0.2);
     background-color: rgb(53, 53, 53);
     border-radius: 5px;
-    overflow: auto;
+    overflow: hidden;
 
 
-    }#panel-title {
+    }.panel-title {
+        width: 100%;
         display: block;
         font-size: 4vmin;
         font-family: monospace, sans-serif;
@@ -184,4 +185,16 @@ aside {
         transition: transform 0.2s;
         cursor: pointer;
         opacity: 1;
+}
+
+
+
+
+p {
+    font-family: monospace, sans-serif;
+    color: rgb(247, 247, 247);
+    font-size: 2vmin;
+    margin: 1vh;
+    background-color: rgb(70, 69, 74);
+    overflow: auto;
 }

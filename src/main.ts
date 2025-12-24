@@ -9,13 +9,6 @@ bn.all_portrayals().forEach(portrayal => portrayal.move_sync(bn.UNSORTED_FOLDER)
 
 
 
-// Resources (here for mutability)
-export let isSortingMode = true // true: sorting mode, false: filtering mode
-export let selectedPersonaFilters: bn.Persona[] = []
-export let selectedTags: bn.TagT[] = []
-
-
-
 // Handle UI elements
 const UI = {
   /*
@@ -31,6 +24,18 @@ const UI = {
 
   // Previews (sidebar)
   previews: isd.by_tag("aside")[0]!,
+
+  clear_previews(): void {
+    for (const child of Array.from(this.previews.children))
+      if (child.className !== "panel-title") // Keep title
+        child.remove()
+  },
+
+  add_text_to_sidebar(_text: string): void {
+    const paragraph = document.createElement("p")
+    paragraph.textContent = _text
+    this.previews.appendChild(paragraph)
+  },
 
   insert_into_sidebar(_source: isn.File): HTMLImageElement | HTMLVideoElement {
     /*
@@ -56,15 +61,44 @@ const UI = {
     return element
   },
 
+  update_sidebar(): void {
+    /*
+      Clears and repopulates the sidebar with stuff depending
+      on current filtering/sorting settings.
+    */
+    const title = isd.by_class("panel-title", HTMLElement).at(1)!
+    title.textContent = "Updating..."
+    this.clear_previews()
+    let mediaToShow: isn.File[] = bn.mode_or() ?
+      bn.list_all_unsorted_portrayals() :
+      bn.make_portrayal_bundle(bn.all_portrayals(), { byPersonas: bn.selectedPersonaFilters, byTags: bn.selectedTags })
+      
+    console.debug("Updating sidebar with portrayals: ", mediaToShow)
+    for (const media of mediaToShow)
+      this.insert_into_sidebar(new isn.File(media.isAt))
+    if (bn.currentMode === bn.Mode.FILTERING) {
+      title.textContent = "Filter info"
+      for (const tag of bn.selectedTags)
+        this.add_text_to_sidebar(`Tag filter: ${bn.TAGS[tag]}`)
+      for (const persona of bn.selectedPersonaFilters)
+        this.add_text_to_sidebar(`Persona filter: ${persona.name()} from ${persona.from().name()}`)
+    } else
+      title.textContent = "Sorting mode"
+  },
+
 
   // Preview target
   previewTargetID: "preview-target", // Can't be obj cuz it takes different shapes at runtime
+
+  clear_preview_target(): void {
+    isd.by_id(UI.previewTargetID, HTMLElement).innerHTML = ""
+  },
 
   preview_portrayal_onclick_event(_selfHtml: HTMLVideoElement | HTMLImageElement): void {
     /*
       Remove previous preview target and replace with own
     */
-    isd.by_id(UI.previewTargetID, HTMLElement).remove()
+    this.clear_preview_target()
     let newElement: typeof _selfHtml
     if (_selfHtml instanceof HTMLVideoElement) {
       newElement = document.createElement("video")
@@ -131,21 +165,27 @@ const UI = {
   async create_new_portrayal_by_user(): Promise<void> {
     const persona: bn.Persona = bn.find_origin(UI.originSelect.value)?.find_persona(UI.personaSelect.value)!
     const previewElement = document.getElementById(UI.previewTargetID)! as HTMLImageElement | HTMLVideoElement
-    console.debug("DEBUG: ", bn.create_portrayal(persona, selectedTags, new isn.File(decodeURI(previewElement.src.replace(/^file:\/\/\//, "")))))
+    console.debug("DEBUG: ", bn.create_portrayal(persona, bn.selectedTags, new isn.File(decodeURI(previewElement.src.replace(/^file:\/\/\//, "")))))
     for (const previewOriginal of isd.by_class("preview"))
       if (previewOriginal instanceof HTMLImageElement || previewOriginal instanceof HTMLVideoElement)
         if (previewOriginal.src === previewElement.src)
           previewOriginal.remove()
   },
+  add_new_persona_filter_by_user(): void {
+    const persona: bn.Persona = bn.find_origin(UI.originSelect.value)?.find_persona(UI.personaSelect.value)!
+    if (!bn.selectedPersonaFilters.includes(persona))
+      bn.selectedPersonaFilters.push(persona)
+    UI.update_sidebar()
+  },
 
-  confirm_filtering(): void {
+  update_list(): void {
     /*
       Apply filtering according to selected personas and tags
     */
     // Clear sidebar
-    UI.previews.innerHTML = ""
+    UI.clear_previews()
     // Gather portrayals to show
-    let portrayalsToShow: bn.Portrayal[] = bn.make_portrayal_bundle(bn.all_portrayals(), { byPersonas: selectedPersonaFilters, byTags: selectedTags })
+    let portrayalsToShow: bn.Portrayal[] = bn.make_portrayal_bundle(bn.all_portrayals(), { byPersonas: bn.selectedPersonaFilters, byTags: bn.selectedTags })
     console.debug("Filtered portrayals: ", portrayalsToShow)
     // Insert into sidebar
     for (const portrayal of portrayalsToShow)
@@ -153,12 +193,7 @@ const UI = {
   },
 
   set_confirm_button_onclick(): void {
-    this.confirmButton.onclick = () => {
-      if (isSortingMode)
-        this.create_new_portrayal_by_user()
-      else
-        this.confirm_filtering()
-    }
+    this.confirmButton.onclick = () =>  bn.mode_or() ? this.create_new_portrayal_by_user() : this.add_new_persona_filter_by_user()
   },
 
 
@@ -177,14 +212,15 @@ const UI = {
       Note:
         This function should be called by an event listener
     */
-    if (selectedTags.includes(_identifier)) {
-      selectedTags = selectedTags.filter((tag) => tag !== _identifier) // Unselect
+    if (bn.selectedTags.includes(_identifier)) {
+      bn.reset_tag_filters(bn.selectedTags.filter((tag) => tag !== _identifier)) // Unselect
       this.tagButtons.get(_identifier)!.style.background = ""
     }
     else {
-      selectedTags.push(_identifier) // Select
+      bn.selectedTags.push(_identifier) // Select
       this.tagButtons.get(_identifier)!.style.backgroundColor = this.make_cool_color_tag_button()
     }
+    UI.update_sidebar()
   },
 
   create_tag_button_in_dom(_identifier: bn.TagT): HTMLButtonElement {
@@ -212,17 +248,21 @@ const UI = {
   // Switch mode button
   switchModeButton: isd.by_id("switch-mode", HTMLButtonElement), // Onclick event is set outside
 
+  switch_background_style(): void {
+    if (bn.mode_or())
+      isd.by_tag("body").at(0)!.style.background = `linear-gradient(45deg, ${this.background_colors.sorting[0]}, ${this.background_colors.sorting[1]})`
+    else
+      isd.by_tag("body").at(0)!.style.background = `linear-gradient(45deg, ${this.background_colors.filtering[0]}, ${this.background_colors.filtering[1]})`
+    isd.by_tag("body").at(0)!.style.backgroundSize = this.background_size
+  },
+
   set_switch_mode_button_onclick(): void {
     this.switchModeButton.onclick = () => {
-      isSortingMode = !isSortingMode
-      console.debug("Switched mode to ", isSortingMode ? "Sorting" : "Filtering")
-      if (isSortingMode) {
-        isd.by_tag("body").at(0)!.style.background = `linear-gradient(45deg, ${this.background_colors.sorting[0]}, ${this.background_colors.sorting[1]})`
-        isd.by_tag("body").at(0)!.style.backgroundSize = this.background_size
-      } else {
-        isd.by_tag("body").at(0)!.style.background = `linear-gradient(45deg, ${this.background_colors.filtering[0]}, ${this.background_colors.filtering[1]})`
-        isd.by_tag("body").at(0)!.style.backgroundSize = this.background_size
-      }
+      bn.toggleMode()
+      console.debug("Switched mode to ", bn.currentMode)
+      this.switch_background_style()
+      UI.update_sidebar()
+      UI.clear_preview_target()
     }
   },
 } as const
@@ -235,9 +275,8 @@ UI.set_originSelect_event_handler()
 UI.set_personaSelect_event_handler()
 UI.set_confirm_button_onclick()
 UI.set_switch_mode_button_onclick()
-
-for (const media of bn.UNSORTED_FOLDER.list_sync())
-  UI.insert_into_sidebar(new isn.File(media.isAt))
+UI.update_sidebar()
 
 isd.by_id(UI.previewTargetID).innerHTML = `Took: ${String(performance.now() - timeStart).slice(0, 5)} ms`
-console.debug("test")
+;(window as any).UI = UI // For debugging
+;(window as any).bn = bn // For debugging
