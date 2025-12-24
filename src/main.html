@@ -7,7 +7,7 @@
 
 <body>
   <main> <!-- Workspace -->
-    <p class="panel-title">Preference Panel (aka. PP)</p>
+    <p id="panel-title">Preference Panel (aka. PP)</p>
     <section id="tags-map">
     </section>
 
@@ -20,13 +20,13 @@
       <section id="inputs-panel">
         <input list="origin-list" id="origin-select" placeholder="Select an origin here" required>
         <datalist id="origin-list">
-          <option value="-- All origins --">
+          <option value="-- All origins --" style="cursor: not-allowed;" disabled selected>
           <!-- <option value="-- All origins --"> -->
         </datalist>
 
         <input list="persona-list" id="persona-select" placeholder="The persona from that origin" required>
         <datalist id="persona-list">
-          <option value="-- All personas --">
+          <option value="-- All personas --" style="cursor: not-allowed;" disabled selected>
           <!-- <option value="-- All personas --"> -->
         </datalist>
       </section>
@@ -34,13 +34,12 @@
 
 
     <!-- Can also be an img/video when selected -->
-    <p id="preview-target">Loading... (probably exception occured)</p>
+    <p>Loading... (probably exception occured)</p>
   </main>
 
 
 
   <aside>
-    <p class="panel-title">Previews+Info</p>
     <!-- Images and such -->
   </aside>
 

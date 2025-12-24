@@ -36,9 +36,11 @@ main {
     background-color: rgb(53, 53, 53);
     border-radius: 5px;
     overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
 
 
-    }.panel-title {
+    }#panel-title {
         width: 100%;
         display: block;
         font-size: 4vmin;
@@ -150,8 +152,11 @@ main {
     #preview-target {
         color: rgb(247, 247, 247);
         font-size: 4vmin;
-        width: 100%;
+        width: -webkit-fill-available;
         height: auto;
+    }
+    .preview-text {
+
 }
 
 

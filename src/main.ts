@@ -1,11 +1,28 @@
 ﻿const timeStart = performance.now()
 import * as isn from "ts-instrumentality/node"
 import * as isd from "ts-instrumentality/dom"
+import * as isb from "ts-instrumentality/base"
 import * as bn from "./logic.js"
+import * as cr from "node:crypto"
+import * as ph from "node:path"
 
 
 // Reset portrayals back to unsorted (DEBUGGING ONLY)
 bn.all_portrayals().forEach(portrayal => portrayal.move_sync(bn.UNSORTED_FOLDER))
+
+// Create random origins and personas (DEBUGGING ONLY)
+for (const road of bn.GALLERY_FOLDER.list_sync(isn.Folder)) // Clear existing origins
+  road.delete_sync()
+const DEBUG_MAX_ORIGIN_AMOUNT = 2 as const
+const DEBUG_MAX_PERSONA_AMOUNT = 2 as const
+const DEBUG_MIN_ORIGIN_AMOUNT = 1 as const
+const DEBUG_MIN_PERSONA_AMOUNT = 1 as const
+for (let _ in isb.range(cr.randomInt(DEBUG_MIN_ORIGIN_AMOUNT, DEBUG_MAX_ORIGIN_AMOUNT))) { // Create origins
+  const originFolder = isn.Folder.create_sync(ph.join(bn.GALLERY_FOLDER.isAt, `og_${cr.randomUUID().slice(0, 4)}`))
+  for (let __ in isb.range(cr.randomInt(DEBUG_MIN_PERSONA_AMOUNT, DEBUG_MAX_PERSONA_AMOUNT))) // Create personas
+    isn.Folder.create_sync(ph.join(originFolder.isAt, `ps_${cr.randomUUID().slice(0, 4)}`))
+}
+console.log("DEBUG: Created random origins and personas")
 
 
 
@@ -14,34 +31,72 @@ const UI = {
   /*
     Contains references to important UI elements and
     functions to manipulate them.
+    Fyi:
+      Base = Fundamental functions that serve one fundamental task
+      Help = Helper functions that simplify other tasks
+      Comb = Combination of other functions to achieve complex tasks
+      Should help with organization, removed later at release
   */
   // Other
+  /**
+   * @for body
+   * @summary Background colors for different modes
+   * @description Different background color gradients for sorting and filtering modes
+   */
   background_colors: {
     sorting: ["#660000", "#001638"],
     filtering: ["#114538", "#161d23"],
   },
+  /**
+   * @for body
+   * @summary Background size for gradient
+   * @description CSS background-size property value for body background
+   */
   background_size: "200% 200%",
 
-  // Previews (sidebar)
+  /**
+   * @as Base
+   * @for main
+   * @param _text Text to append
+   * @summary Appends text at the bottom of main
+   * @description Creates a new paragraph element with the given text and appends it to the main element
+   */
+  append_text_to_main(_text: string): void {
+    const p = document.createElement("p")
+    p.textContent = _text
+    isd.by_tag("main").at(0)!.appendChild(p)
+  },
+
+
+
+  // Sidebar previews
+  /**
+   * @for aside
+   * @summary Sidebar previews container
+   * @description The HTML aside element that contains all media previews
+   */
   previews: isd.by_tag("aside")[0]!,
 
+  /**
+   * @as Base
+   * @for aside
+   * @summary Clears all previews from the sidebar
+   * @description Removes all child elements from the sidebar previews container
+   */
   clear_previews(): void {
     for (const child of Array.from(this.previews.children))
-      if (child.className !== "panel-title") // Keep title
-        child.remove()
+      child.remove()
   },
 
-  add_text_to_sidebar(_text: string): void {
-    const paragraph = document.createElement("p")
-    paragraph.textContent = _text
-    this.previews.appendChild(paragraph)
-  },
-
+  /**
+   * @as Comb
+   * @for aside
+   * @summary Inserts a media preview into the sidebar
+   * @description Makes an html element for the given media source and inserts it into the sidebar
+   * @param _source Media source file
+   * @returns The created HTML element
+   */
   insert_into_sidebar(_source: isn.File): HTMLImageElement | HTMLVideoElement {
-    /*
-      Inserts a media file into the sidebar as an
-      img or vid element.
-    */
     let element: HTMLImageElement | HTMLVideoElement
     if (bn.EXTENSION_TO_MEDIA[_source.ext()] === bn.MediaT.IMAGE)
       element = document.createElement("img")
@@ -61,44 +116,59 @@ const UI = {
     return element
   },
 
+  /**
+   * @as Comb
+   * @for aside
+   * @summary Updates the sidebar previews
+   * @description Clears and repopulates the sidebar with stuff depending on current filtering/sorting settings.
+   */
   update_sidebar(): void {
     /*
       Clears and repopulates the sidebar with stuff depending
       on current filtering/sorting settings.
     */
-    const title = isd.by_class("panel-title", HTMLElement).at(1)!
-    title.textContent = "Updating..."
     this.clear_previews()
     let mediaToShow: isn.File[] = bn.mode_or() ?
       bn.list_all_unsorted_portrayals() :
       bn.make_portrayal_bundle(bn.all_portrayals(), { byPersonas: bn.selectedPersonaFilters, byTags: bn.selectedTags })
-      
+
     console.debug("Updating sidebar with portrayals: ", mediaToShow)
     for (const media of mediaToShow)
       this.insert_into_sidebar(new isn.File(media.isAt))
-    if (bn.currentMode === bn.Mode.FILTERING) {
-      title.textContent = "Filter info"
-      for (const tag of bn.selectedTags)
-        this.add_text_to_sidebar(`Tag filter: ${bn.TAGS[tag]}`)
-      for (const persona of bn.selectedPersonaFilters)
-        this.add_text_to_sidebar(`Persona filter: ${persona.name()} from ${persona.from().name()}`)
-    } else
-      title.textContent = "Sorting mode"
   },
 
 
   // Preview target
-  previewTargetID: "preview-target", // Can't be obj cuz it takes different shapes at runtime
+  /**
+   * @for main below
+   * @summary ID of the preview target element
+   * @description The element in main that shows the selected preview from sidebar
+   * @note Not typed as HTMLElement because type varies at runtime
+   */
+  previewTargetID: "preview-target",
 
+  /**
+   * @as Base
+   * @for main below
+   * @summary Clears the preview target element from main
+   * @description Clears the preview target element from main except for the panel title obviously
+   */
   clear_preview_target(): void {
-    isd.by_id(UI.previewTargetID, HTMLElement).innerHTML = ""
+    document.getElementById(this.previewTargetID)?.remove()
+    for (const paragraph of isd.by_tag("p"))
+      if (paragraph.id !== "panel-title") // Keep panel title
+        paragraph.remove()
   },
 
+  /**
+   * @as Comb
+   * @for aside (copies self to main below)
+   * @summary Event handler for when a preview in the sidebar is clicked
+   * @description Removes previous preview target element and creates a new one
+   * @param _selfHtml The HTML element that was clicked
+   */
   preview_portrayal_onclick_event(_selfHtml: HTMLVideoElement | HTMLImageElement): void {
-    /*
-      Remove previous preview target and replace with own
-    */
-    this.clear_preview_target()
+    document.getElementById(UI.previewTargetID)?.remove()
     let newElement: typeof _selfHtml
     if (_selfHtml instanceof HTMLVideoElement) {
       newElement = document.createElement("video")
@@ -114,9 +184,25 @@ const UI = {
 
 
   // Origin select 
+  /**
+   * @for origin select
+   * @summary Origin select input element
+   * @description The HTML input element for selecting origins
+   */
   originSelect: isd.by_id("origin-select", HTMLInputElement),
+  /**
+   * @for origin select
+   * @summary Origin datalist element
+   * @description The HTML datalist element that contains all origin options
+   */
   originList: isd.by_id("origin-list", HTMLDataListElement),
 
+  /**
+   * @as Base
+   * @for origin select
+   * @summary Populates the origin datalist with available origins
+   * @description Creates option elements for each available origin and appends them to the origin datalist
+   */
   set_origin_datalist(): void {
     for (const origin of bn.list_origins()) {
       const option = document.createElement("option")
@@ -223,6 +309,13 @@ const UI = {
     UI.update_sidebar()
   },
 
+  reset_all_tag_buttons(): void {
+    for (const [_, button] of this.tagButtons.entries())
+      button.style.background = ""
+    bn.reset_tag_filters([])
+    UI.update_sidebar()
+  },
+
   create_tag_button_in_dom(_identifier: bn.TagT): HTMLButtonElement {
     /*
       Create and insert a tag button inside DOM
@@ -277,6 +370,6 @@ UI.set_confirm_button_onclick()
 UI.set_switch_mode_button_onclick()
 UI.update_sidebar()
 
-isd.by_id(UI.previewTargetID).innerHTML = `Took: ${String(performance.now() - timeStart).slice(0, 5)} ms`
+isd.by_tag("p").at(1)!.innerHTML = `Initialization took: ${String(performance.now() - timeStart).slice(0, 5)} ms`
 ;(window as any).UI = UI // For debugging
 ;(window as any).bn = bn // For debugging
