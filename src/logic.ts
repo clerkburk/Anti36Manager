@@ -3,234 +3,147 @@
   Note:
     For consistency, don't use Web/DOM-related code here
 */
-import * as isn from "ts-instrumentality/node"
-import * as isb from "ts-instrumentality/base"
-import { join } from "node:path"
+import * as rd from "instrumentality/road"
 
 
 
-
-// Lookups and Constants
-import A36M_CONFIGS from "../../a36s.json" with { type: "json" } // Placeholder
-export const GALLERY_FOLDER = new isn.Folder(A36M_CONFIGS.galleryFolder)
-export const UNSORTED_FOLDER = new isn.Folder(A36M_CONFIGS.unsortedFolder)
+// Lookups and Constants {
+import A36M_CONFIGS from "M:/a36s.ts" // Placeholder
+export const GALLERY = rd.dir(A36M_CONFIGS.galleryFolder, true)
+export const EXT2MEDIA = A36M_CONFIGS.ext2Media
 export const TAGS = A36M_CONFIGS.tags
-export type TagT = keyof typeof TAGS
-export function to_TagT(_keyAsStr: string): TagT {
-  if (_keyAsStr in TAGS)
-    return _keyAsStr as TagT
-  throw new Error(`Invalid tag key: ${_keyAsStr}`)
+export type TagKey = keyof typeof TAGS
+export type TagDescription = typeof TAGS[TagKey]
+export function reverseTAGS(description_: TagDescription | string): TagKey | null {
+  for (const [key, value] of Object.entries(TAGS))
+    if (value === description_)
+      return key as keyof typeof TAGS
+  return null
 }
-
-
-
-// Type management
-export const enum MediaT {
-  IMAGE = "IMAGE",
-  VIDEO = "VIDEO"
-}
-export const EXTENSION_TO_MEDIA: { [ext: string]: MediaT } = { // Lowercase before use
-  ".mp4": MediaT.VIDEO,
-  ".webm": MediaT.VIDEO,
-  ".mkv": MediaT.VIDEO,
-  ".avi": MediaT.VIDEO,
-  ".mov": MediaT.VIDEO,
-  ".jpg": MediaT.IMAGE,
-  ".jpeg": MediaT.IMAGE,
-  ".png": MediaT.IMAGE,
-  ".gif": MediaT.IMAGE,
-  ".bmp": MediaT.IMAGE,
-  ".webp": MediaT.IMAGE
-} as const
 
 
 
 // Helpers
-export function find_origin(_byName: string): Origin | undefined {
-  console.debug("Finding origin: ", _byName)
-  const folder = GALLERY_FOLDER.find_sync(_byName, isn.Folder)
-  console.debug("Found folder: ", folder)
-  return folder ? new Origin(folder.name()) : undefined
-}
-export function list_origins(): Origin[] {
-  return GALLERY_FOLDER.list_sync().map(folder => new Origin(folder.name()))
-}
+export const selectedTags: Set<TagKey> = new Set()
 
-
-
-export class Origin extends isn.Folder {
-  constructor(_name: string) {
-    super(join(GALLERY_FOLDER.isAt, _name))
-  }
-  list_personas(): Persona[] {
-    return this.list_sync().map(folder => new Persona(this, folder.name()))
-  }
-  find_persona(_byName: string): Persona | undefined {
-    const folder = this.find_sync(_byName, isn.Folder)
-    return folder ? new Persona(this, folder.name()) : undefined
-  }
-  // Disable all modification/copy methods
-  override rename_sync(_: string): never { throw new Error("Tried renaming an Origin") }
-  override move_sync(_: isn.Folder): never { throw new Error("Tried moving an Origin") }
-  override copy_sync(_: isn.Folder): never { throw new Error("Tried copying an Origin") }
-  override delete_sync(): never { throw new Error("Tried deleting an Origin") }
-  override rename(_: string): never { throw new Error("Tried renaming an Origin") }
-  override move(_: isn.Folder): never { throw new Error("Tried moving an Origin") }
-  override copy(_: isn.Folder): never { throw new Error("Tried copying an Origin") }
-  override delete(): never { throw new Error("Tried deleting an Origin") }
-}
-
-
-export class Persona extends isn.Folder {
-  constructor(origin: Origin, name: string) {
-    super(join(origin.isAt, name))
-  }
-  from(): Origin {
-    return new Origin(this.parent().name())
-  }
-  list_portrayals(): Portrayal[] {
-    return this.list_sync(isn.File).map(file => {
-      const index = Number(file.name().split('_')[0])
-      return new Portrayal(index, this)
-    })
-  }
-  find_portrayal(_byIndex: number): Portrayal | undefined {
-    const file = this.list_sync(isn.File).find(file => file.name().startsWith(`${_byIndex}`))
-    return file ? new Portrayal(_byIndex, this) : undefined
-  }
-  // Disable all modification/copy methods
-  override rename_sync(_: string): never { throw new Error("Tried renaming a Persona") }
-  override move_sync(_: isn.Folder): never { throw new Error("Tried moving a Persona") }
-  override copy_sync(_: isn.Folder): never { throw new Error("Tried copying a Persona") }
-  override delete_sync(): never { throw new Error("Tried deleting a Persona") }
-  override rename(_: string): never { throw new Error("Tried renaming a Persona") }
-  override move(_: isn.Folder): never { throw new Error("Tried moving a Persona") }
-  override copy(_: isn.Folder): never { throw new Error("Tried copying a Persona") }
-  override delete(): never { throw new Error("Tried deleting a Persona") }
-}
-
-
-export class Portrayal extends isn.File {
-  constructor(_index: number, _persona: Persona) {
-    const presumablySelf = _persona.list_sync(isn.File).find(file => file.name().startsWith(`${_index}`))
-    if (!presumablySelf)
-      throw new Error(`Portrayal file not found for index ${_index} in persona ${_persona.name()}`)
-    super(presumablySelf.isAt)
-  }
-  index(): number {
-    return Number(this.name().split('_')[0])
-  }
-  from(): Persona {
-    return new Persona(new Origin(this.parent().parent().name()), this.parent().name())
-  }
-  type(): MediaT {
-    return EXTENSION_TO_MEDIA[this.ext().toLowerCase()]!
-  }
-  tags(): TagT[] {
-    return this.name().split('_')[1]!.split('').map(tag => to_TagT(tag)) // Something like "1a2B"
-  }
-  // Disable all modification/copy methods (reading is oki)
-  override rename_sync(_: string): never { throw new Error("Tried renaming a Portrayal") }
-  // override move_sync(_: isn.Folder): never { throw new Error("Tried moving a Portrayal") } // Temporarily allow moving (DEBUGGING ONLY)
-  override copy_sync(_: isn.Folder): never { throw new Error("Tried copying a Portrayal") }
-  override delete_sync(): never { throw new Error("Tried deleting a Portrayal") }
-  override rename(_: string): never { throw new Error("Tried renaming a Portrayal") }
-  override move(_: isn.Folder): never { throw new Error("Tried moving a Portrayal") }
-  override copy(_: isn.Folder): never { throw new Error("Tried copying a Portrayal") }
-  override delete(): never { throw new Error("Tried deleting a Portrayal") }
-  override write_text_sync(_: string): never { throw new Error("Tried writing (text sync) to a Portrayal") }
-  override write_text(_: string): never { throw new Error("Tried writing (text async) to a Portrayal") }
-  override append_text_sync(_: string): never { throw new Error("Tried appending (text sync) to a Portrayal") }
-  override append_text(_: string): never { throw new Error("Tried appending (text async) to a Portrayal") }
-  override write_bytes_sync(_: Buffer): never { throw new Error("Tried writing (bytes sync) to a Portrayal") }
-  override write_bytes(_: Buffer): never { throw new Error("Tried writing (bytes async) to a Portrayal") }
-  override append_bytes_sync(_: Buffer): never { throw new Error("Tried appending (bytes sync) to a Portrayal") }
-  override append_bytes(_: Buffer): never { throw new Error("Tried appending (bytes async) to a Portrayal") }
-  override create_write_stream(): never { throw new Error("Tried creating write stream to a Portrayal") }
-}
-
-
-export function list_all_unsorted_portrayals(_lookIn: isn.Folder = UNSORTED_FOLDER, _existing?: isn.File[]): isn.File[] {
-  /*
-    Recursively list all files in the unsorted folder
-    and its subfolders and return them as an array
-    sorted by modification date
-  */
-  let result: isn.File[] = []
-  for (const entry of _lookIn.list_sync())
-    if (entry instanceof isn.Folder)
-      result = result.concat(list_all_unsorted_portrayals(entry, _existing))
-    else if (entry instanceof isn.File)
-      result.push(entry)
-  result.sort((a, b) => a.stats_sync().mtime.getTime() - b.stats_sync().mtime.getTime())
-  return result
-}
-
-
-export function create_portrayal(_persona: Persona, _tags: TagT[], _fromUnsorted: isn.File): Portrayal {
-  /*
-    Move a file from unsorted to the given persona folder
-    and rename it according to the next available index
-    and given tags
-  */
-  const nextOpenIndex = _persona.list_portrayals().length
-  _fromUnsorted.rename_sync(`A36M_TEMP_${Math.random().toString(36)}${_fromUnsorted.ext()}`) // Temporary random name to avoid conflicts
-  _fromUnsorted.move_sync(_persona)
-  _fromUnsorted.rename_sync(`${nextOpenIndex}_${_tags.join("")}_${_fromUnsorted.ext()}`)
-  return new Portrayal(nextOpenIndex, _persona)
-}
-
-
-export function all_portrayals(): Portrayal[] {
-  return list_origins().flatMap(origin => origin.list_personas().flatMap(persona => persona.list_portrayals()))
-}
-
-
-export function make_portrayal_bundle(_portrayals: Portrayal[], _filterOptions: { byPersonas?: Persona[], byTags?: TagT[] }): Portrayal[] {
-  /*
-    From a list of portrayals, make a bundle according
-    to the filter options. If a portrayal any of the
-    filter options, it is included in the result. (OR logic)
-  */
-  return _portrayals.filter(portrayal =>
-    (_filterOptions.byPersonas && _filterOptions.byPersonas.length > 0 &&
-      _filterOptions.byPersonas.some(persona => persona.isAt === portrayal.from().isAt))
-    || (_filterOptions.byTags && _filterOptions.byTags.length > 0 &&
-      _filterOptions.byTags.some(tag => portrayal.tags().includes(tag)))
-  )
-}
-
-
-
-// State management
-export const enum Mode {
-  SORTING = "SORTING",
-  FILTERING = "FILTERING"
-}
-export let currentMode: Mode = Mode.FILTERING
-export function toggleMode(_to: Mode = currentMode === Mode.FILTERING ? Mode.SORTING : Mode.FILTERING): void { currentMode = _to }
-export function mode_or(_truthyMode: Mode = Mode.SORTING): boolean {
-  /*
-    Another layering of mode check that returns a boolean
-    instead of executing functions. Would save some lines
-    of code in certain places.
-  */
-  if (currentMode === Mode.SORTING)
-    return _truthyMode === Mode.SORTING
-  else if (currentMode === Mode.FILTERING)
-    return _truthyMode === Mode.FILTERING
+export function resetTagFilters(filterSpecific?: (tag_:TagKey)=>boolean): void {
+  if (!filterSpecific)
+    selectedTags.clear()
   else
-    throw new Error("Invalid mode state")
+    for (const tag of [...selectedTags])
+      if (!filterSpecific(tag))
+        selectedTags.delete(tag)
 }
-export let selectedPersonaFilters: Persona[] = []
-export function clear_persona_filters(): void { selectedPersonaFilters = [] }
-export function add_persona_filter(_persona: Persona): void { 
-  if (!selectedPersonaFilters.includes(_persona))
-    selectedPersonaFilters.push(_persona)
+
+
+export let mode: "view" | "sort" = "view"
+export function modeOr(): boolean { return mode === 'view' }
+export function toggleMode(to_?: "view" | "sort"): void {
+  if (to_)
+    mode = to_
+  else
+    mode = mode === "view" ? "sort" : "view"
 }
-export let selectedTags: TagT[] = []
-export function reset_tag_filters(_to: TagT[] = []): void { selectedTags = _to }
-export function add_tag_filter(_tag: TagT): void {
-  if (!selectedTags.includes(_tag))
-    selectedTags.push(_tag)
+
+
+export let selectedPersona: Persona | null = null
+export function resetSelectedPersona(): void { selectedPersona = null }
+export function setSelectedPersona(persona_: Persona | null): void { selectedPersona = persona_ }
+
+
+export function listOrigins(): Origin[] { return GALLERY.listSync(r=>r.isDir()).map(d => new Origin(d.name)) }
+export function findOrigin(name_: string): Origin | null {
+  const dir = GALLERY.listSync(r=>r.isDir()).find(dir => dir.name === name_)
+  return dir ? new Origin(dir.name) : null
+}
+
+
+export class Origin extends rd.Dir {
+  override readonly writable = false as const
+  override readonly moveable = false as const
+  override readonly deletable = false as const
+  override readonly copyable = false as const
+  override readonly renameable = false as const
+  constructor(name_: string) { super(GALLERY.join(name_), true) }
+
+  listAll(): Persona[] { return super.listSync(r=>r.isDir()).map(dir => new Persona(this, dir.name)) }
+  findAny(name_: string): Persona | null {
+    const dir = super.findSync(name_, r=>r.isDir())
+    return dir ? new Persona(this, dir.name) : null
+  }
+}
+
+
+export class Persona extends rd.Dir {
+  override readonly writable = false as const
+  override readonly moveable = false as const
+  override readonly deletable = false as const
+  override readonly copyable = false as const
+  override readonly renameable = false as const
+  constructor(inside_: Origin, name_: string) { super(inside_.join(name_), true) }
+
+  from(): Origin { return new Origin(this.parent().name) }
+  listAll(): Portrayal[] { return super.listSync(r=>r.isFile()).map(file => new Portrayal(this, file.name)) }
+  listValid(): Portrayal[] { return this.listAll().filter(p=>p.valid()) }
+  listUnvalid(): Portrayal[] { return this.listAll().filter(p=>!p.valid()) }
+  findAny(name_: string): Portrayal | null {
+    const file = super.findSync(name_, r=>r.isFile())
+    return file ? new Portrayal(this, file.name) : null
+  }
+  findValid(name_: string): Portrayal | null {
+    const p = this.findAny(name_)
+    return p && p.valid() ? p : null
+  }
+  findUnvalid(name_: string): Portrayal | null {
+    const p = this.findAny(name_)
+    return p && !p.valid() ? p : null
+  }
+}
+
+
+export const PORTRAYAL_REGEX = /^@(\d+)((?:#[a-zA-Z0-9_-]+)*)\.([a-zA-Z0-9]+)$/ // Expected: @<id:number>#<t1:string>#<t2:string>#<...>.<extension:string>
+
+export class Portrayal extends rd.File {
+  override readonly writable = false as const
+  override readonly moveable = false as const
+  override readonly deletable = false as const
+  override readonly copyable = false as const
+  override readonly renameable = false as const
+  constructor(inside_: Persona, name_: string) {
+    super(inside_.join(name_), false)
+  }
+
+  valid(): boolean { return PORTRAYAL_REGEX.test(this.name) }
+  breakdown() {
+    const match = this.name.match(PORTRAYAL_REGEX)!
+    const id = Number(match[1])
+    const tags = match[2] ? match[2].slice(1).split('#') : []
+    return { id, tags } // extension is already provided as method in rd.File
+  }
+  id(): number { return Number(this.breakdown().id) }
+  tagDescriptions(): TagDescription[] { return this.breakdown().tags.map(tk => {
+    const t = TAGS[tk as TagKey]
+    if (!t) throw new Error(`Invalid tag key: ${tk}`)
+    return t
+  }) }
+  tagKeys(): TagKey[] { return this.breakdown().tags.map(tk => {
+    if (!(tk in TAGS)) throw new Error(`Invalid tag key: ${tk}`)
+    return tk as TagKey
+  }) }
+  type(): typeof EXT2MEDIA[keyof typeof EXT2MEDIA] { return EXT2MEDIA[this.ext.toLowerCase() as keyof typeof EXT2MEDIA] }
+}
+
+
+
+export async function sort(grabFrom_: rd.File, inside_: Persona): Promise<Portrayal> {
+  grabFrom_.move(rd.tmp())
+  grabFrom_.rename(`@${inside_.listAll().length + 1}${[...selectedTags].map(tk => `#${tk}`).join('')}.${grabFrom_.ext}`)
+  grabFrom_.move(inside_)
+  return new Portrayal(inside_, grabFrom_.name)
+}
+export function sortSync(grabFrom_: rd.File, inside_: Persona): Portrayal {
+  grabFrom_.moveSync(rd.tmp())
+  grabFrom_.renameSync(`@${inside_.listAll().length + 1}${[...selectedTags].map(tk => `#${tk}`).join('')}.${grabFrom_.ext}`)
+  grabFrom_.moveSync(inside_)
+  return new Portrayal(inside_, grabFrom_.name)
 }

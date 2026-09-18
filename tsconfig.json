@@ -9,14 +9,15 @@
     "noEmitOnError": true,
 
     // Environment Settings
-    "module": "nodenext",
+    "module": "esnext",
     "target": "ESNext",
     "lib": ["esnext", "dom"],
-    "types": ["node"],
-    "moduleResolution": "nodenext",
+    "moduleResolution": "bundler",
     "isolatedModules": true,
-    "moduleDetection": "force",
+    "moduleDetection": "auto",
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
 
     // Style Options
     "strict": true,
@@ -31,6 +32,5 @@
     "exactOptionalPropertyTypes": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"],
-  "exclude": ["test"]
+  "files": ["M:\\a36s.ts"]
 }

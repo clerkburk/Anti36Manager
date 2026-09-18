@@ -1,27 +1,15 @@
 {
-  "name": "anti36manager",
-  "version": "1.0.0",
-  "productName": "A36M",
   "main": "./entryPointForElectron.js",
   "type": "module",
   "scripts": {
-    "start": "electron-forge start",
-    "bundle_to_js": "npx esbuild ./src/main.ts --bundle --platform=node --format=esm --outfile=./dist/main.js",
-    "dev": "npm run bundle_to_js && npm start"
+    "bundle": "npx esbuild ./src/main.ts --bundle --platform=node --outfile=./dist/main.js",
+    "dev": "npm run bundle && electron ."
+  },
+  "dependencies": {
+    "electron": "*",
+    "instrumentality": "*"
   },
   "devDependencies": {
-    "@electron-forge/cli": "^7.8.3",
-    "@electron-forge/maker-deb": "^7.8.3",
-    "@electron-forge/maker-rpm": "^7.8.3",
-    "@electron-forge/maker-squirrel": "^7.8.3",
-    "@electron-forge/maker-zip": "^7.8.3",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.8.3",
-    "@electron-forge/plugin-fuses": "^7.8.3",
-    "@electron/fuses": "^1.8.0",
-    "@types/node": "^24.3.0",
-    "electron": "37.3.1",
-    "electron-squirrel-startup": "^1.0.1",
-    "ts-instrumentality": "github:clerkburk/ts-instrumentality",
-    "typescript": "^5.9.3"
+    "typescript": "*"
   }
 }
